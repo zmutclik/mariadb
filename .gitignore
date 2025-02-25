@@ -1,0 +1,6 @@
+.env
+config/.env
+config/init.sql
+config/db_backup.cnf
+config/conf.d
+data
