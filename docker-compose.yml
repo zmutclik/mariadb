@@ -1,0 +1,37 @@
+volumes:
+  db_backup:
+    driver_opts:
+      type: nfs
+      o: addr=${NFS_IP},nfsvers=4
+      device: ${NFS_BACKUP}
+
+#######################################################################################################################
+services:
+  app_db:
+    build:
+      context: .
+      dockerfile: dockerfile
+      args:
+        - DB_ROOTPASSWORD=${DB_ROOTPASSWORD}
+        - DB_APPUSER=${DB_APPUSER}
+        - DB_APPPASS=${DB_APPPASS}
+        - DB_NAME=${DB_NAME}
+    container_name: JSON_REPOSITORY_DB
+    hostname: jsonrepositorydb
+    volumes:
+      - ./data:/var/lib/mysql
+      - ./config/conf.d/:/etc/mysql/conf.d
+      - "./config/db_backup.cnf:/etc/db_backup.cnf"
+      - "db_backup:/backup/"
+    dns:
+      - ${DNS1}
+      - ${DNS2}
+    networks:
+      macvlan000:
+        ipv4_address: ${DB__IPADDRESS}
+
+#######################################################################################################################
+networks:
+  macvlan000:
+    external:
+      name: ${MACVLAN}
