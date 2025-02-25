@@ -7,7 +7,7 @@ volumes:
 
 #######################################################################################################################
 services:
-  app_db:
+  mariadb:
     build:
       context: .
       dockerfile: dockerfile
@@ -19,7 +19,7 @@ services:
     container_name: ${CONTAINER_NAME}
     hostname: ${HOSTNAME}
     volumes:
-      - ./data:/var/lib/mysql
+      # - ./data:/var/lib/mysql
       - ./config/conf.d/:/etc/mysql/conf.d
       - "./config/db_backup.cnf:/etc/db_backup.cnf"
       - "db_backup:/backup/"
