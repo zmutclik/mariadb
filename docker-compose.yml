@@ -16,8 +16,8 @@ services:
         - DB_APPUSER=${DB_APPUSER}
         - DB_APPPASS=${DB_APPPASS}
         - DB_NAME=${DB_NAME}
-    container_name: JSON_REPOSITORY_DB
-    hostname: jsonrepositorydb
+    container_name: ${CONTAINER_NAME}
+    hostname: ${HOSTNAME}
     volumes:
       - ./data:/var/lib/mysql
       - ./config/conf.d/:/etc/mysql/conf.d
