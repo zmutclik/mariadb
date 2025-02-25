@@ -36,4 +36,4 @@ sed -i 's/"//gI' ./config/db_backup.cnf
 
 rm ./config/.env~
 
-cp -rL config/.env .env
+ln config/.env .env
