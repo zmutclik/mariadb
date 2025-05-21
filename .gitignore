@@ -4,3 +4,4 @@ config/init.sql
 config/db_backup.cnf
 config/conf.d
 data
+.DS_Store
