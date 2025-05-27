@@ -1,9 +1,9 @@
-volumes:
-  db_backup:
-    driver_opts:
-      type: nfs
-      o: addr=${NFS_IP},nfsvers=4
-      device: ${NFS_BACKUP}
+# volumes:
+#   db_backup:
+#     driver_opts:
+#       type: nfs
+#       o: addr=${NFS_IP},nfsvers=4
+#       device: ${NFS_BACKUP}
 
 #######################################################################################################################
 services:
@@ -26,14 +26,14 @@ services:
     dns:
       - ${DNS1}
       - ${DNS2}
-    # ports:
-    #   - "3306:3306/tcp"
-    networks:
-      macvlan000:
-        ipv4_address: ${DB__IPADDRESS}
+    ports:
+      - "3306:3306/tcp"
+    # networks:
+    #   macvlan000:
+    #     ipv4_address: ${DB__IPADDRESS}
 
 #######################################################################################################################
-networks:
-  macvlan000:
-    external:
-      name: ${MACVLAN}
+# networks:
+#   macvlan000:
+#     external:
+#       name: ${MACVLAN}
