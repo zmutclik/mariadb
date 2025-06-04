@@ -15,7 +15,7 @@ services:
 
 volumes:
   mariadb_data:
-    driver_opts:
-      type: nfs
-      o: addr=${NFS_IP},nfsvers=4
-      device: ${NFS_DATA_PATH}
+    # driver_opts:
+    #   type: nfs
+    #   o: addr=${NFS_IP},nfsvers=4
+    #   device: ${NFS_DATA_PATH}
