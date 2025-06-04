@@ -22,10 +22,16 @@ sed -i '' 's/"//gI' ./config/.env
 
 source ./config/.env
 
-sed -i '' "s/BACKUP_PASS/$PASSYBACKUPX/gI" ./config/init-backup-user.sql
-sed -i '' "s/PASSYBACKUPX/$PASSYBACKUPX/gI" ./config/db_backup.cnf
-sed -i '' 's/"//gI' ./config/init-backup-user.sql
-sed -i '' 's/"//gI' ./config/db_backup.cnf
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    SED_INPLACE="sed -i ''"
+else
+    SED_INPLACE="sed -i"
+fi
+$SED_INPLACE "s/BACKUP_PASS/$PASSYBACKUPX/gI" ./config/init-backup-user.sql
+$SED_INPLACE "s/PASSYBACKUPX/$PASSYBACKUPX/gI" ./config/db_backup.cnf
+$SED_INPLACE 's/"//gI' ./config/init-backup-user.sql
+$SED_INPLACE 's/"//gI' ./config/db_backup.cnf
+
 
 rm ./config/.env~
 
