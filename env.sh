@@ -18,19 +18,20 @@ sed -i~ "/^DB_APPUSER=/s/=.*/=$DBAPPUSERX/" ./config/.env
 sed -i~ "/^DB_APPPASS=/s/=.*/=$DBAPPPASSWORDX/" ./config/.env
 sed -i~ "/^BACKUP_PASS=/s/=.*/=$PASSYBACKUPX/" ./config/.env
 
-source ./config/.env
-
 if [[ "$OSTYPE" == "darwin"* ]]; then
     SED_INPLACE="sed -i ''"
 else
     SED_INPLACE="sed -i"
 fi
+
+eval "$SED_INPLACE 's/\"//gI' ./config/.env"
+
+source ./config/.env
+
 eval "$SED_INPLACE \"s/BACKUP_PASS/$PASSYBACKUPX/gI\" ./config/init-backup-user.sql"
 eval "$SED_INPLACE \"s/PASSYBACKUPX/$PASSYBACKUPX/gI\" ./config/db_backup.cnf"
 eval "$SED_INPLACE 's/\"//gI' ./config/init-backup-user.sql"
 eval "$SED_INPLACE 's/\"//gI' ./config/db_backup.cnf"
-eval "$SED_INPLACE 's/"//gI' ./config/.env"
-
 
 rm ./config/.env~
 
