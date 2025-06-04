@@ -27,10 +27,10 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 else
     SED_INPLACE="sed -i"
 fi
-$SED_INPLACE "s/BACKUP_PASS/$PASSYBACKUPX/gI" ./config/init-backup-user.sql
-$SED_INPLACE "s/PASSYBACKUPX/$PASSYBACKUPX/gI" ./config/db_backup.cnf
-$SED_INPLACE 's/"//gI' ./config/init-backup-user.sql
-$SED_INPLACE 's/"//gI' ./config/db_backup.cnf
+eval "$SED_INPLACE \"s/BACKUP_PASS/$PASSYBACKUPX/gI\" ./config/init-backup-user.sql"
+eval "$SED_INPLACE \"s/PASSYBACKUPX/$PASSYBACKUPX/gI\" ./config/db_backup.cnf"
+eval "$SED_INPLACE 's/\"//gI' ./config/init-backup-user.sql"
+eval "$SED_INPLACE 's/\"//gI' ./config/db_backup.cnf"
 
 
 rm ./config/.env~
