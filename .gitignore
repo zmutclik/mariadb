@@ -1,7 +1,5 @@
 .env
 config/.env
-config/init.sql
+config/init-backup-user.sql
 config/db_backup.cnf
-config/conf.d
-data
 .DS_Store
