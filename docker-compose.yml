@@ -1,0 +1,21 @@
+services:
+  mariadb:
+    build: .
+    container_name: ${CONTAINER_NAME}
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOTPASSWORD}
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_APPUSER}
+      MARIADB_PASSWORD: ${DB_APPPASS}
+    ports:
+      - "${DB_PORT}:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+volumes:
+  mariadb_data:
+    driver_opts:
+      type: nfs
+      o: addr=${NFS_IP},nfsvers=4
+      device: ${NFS_DATA_PATH}
