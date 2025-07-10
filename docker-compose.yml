@@ -12,7 +12,14 @@ services:
       - "${DB_PORT}:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
+#    networks:
+#      macvlan00:
+#        ipv4_address: ${IPv4}
 
+#networks:
+#  macvlan00:
+#    external:
+#      name: ${MACVLAN}
 volumes:
   mariadb_data:
     # driver_opts:
