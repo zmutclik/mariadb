@@ -2,6 +2,7 @@ services:
   mariadb:
     build: .
     container_name: ${CONTAINER_NAME}
+    hostname: ${HOSTNAME}
     restart: always
     environment:
       MARIADB_ROOT_PASSWORD: ${DB_ROOTPASSWORD}
@@ -11,11 +12,25 @@ services:
     ports:
       - "${DB_PORT}:3306"
     volumes:
-      - mariadb_data:/var/lib/mysql
+      - data:/var/lib/mysql
+    networks:
+      net:
+#        ipv4_address: ${IPv4}
+    dns:
+      - ${DNS1}
+      - ${DNS2}
 
+networks:
+  net:
+#    name: ${NETWORK}
+#    external: true
+#    ipam:
+#      config:
+#        - subnet: ${SUBNET}
+#          gateway: ${GATEWAY}
 volumes:
-  mariadb_data:
-    # driver_opts:
-    #   type: nfs
-    #   o: addr=${NFS_IP},nfsvers=4
-    #   device: ${NFS_DATA_PATH}
+  data:
+#    driver_opts:
+#      type: nfs
+#      o: addr=${NFS_ADDRESS},nfsvers=4
+#      device: ${NFS_PATH}
