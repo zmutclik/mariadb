@@ -1,7 +1,7 @@
 FROM mariadb:latest
 RUN apt update
 RUN apt -y upgrade
-RUN apt-get install -y tzdata cron curl nano
+RUN apt-get install -y tzdata cron curl nano iputils-ping traceroute
 RUN ln -snf /usr/share/zoneinfo/Asia/Jakarta /etc/localtime && echo "Asia/Jakarta" >/etc/timezone && dpkg-reconfigure -f noninteractive tzdata
 RUN mkdir -p /backup/databases /backup/fullbackup /backup/log && chmod 755 /backup/databases /backup/fullbackup /backup/log
 
