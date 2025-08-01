@@ -1,0 +1,36 @@
+services:
+  mariadb:
+    image: zmutclik/mariadb:latest
+    container_name: ${CONTAINER_NAME}
+    hostname: ${HOSTNAME}
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOTPASSWORD}
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_APPUSER}
+      MARIADB_PASSWORD: ${DB_APPPASS}
+    ports:
+      - "${DB_PORT}:3306"
+    volumes:
+      - data:/var/lib/mysql
+    networks:
+      net:
+#        ipv4_address: ${IPv4}
+    dns:
+      - ${DNS1}
+      - ${DNS2}
+
+networks:
+  net:
+#    name: ${NETWORK}
+#    external: true
+#    ipam:
+#      config:
+#        - subnet: ${SUBNET}
+#          gateway: ${GATEWAY}
+volumes:
+  data:
+#    driver_opts:
+#      type: nfs
+#      o: addr=${NFS_ADDRESS},nfsvers=4
+#      device: ${NFS_PATH}
