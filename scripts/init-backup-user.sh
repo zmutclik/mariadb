@@ -10,7 +10,7 @@ else
     mysql_note "Membuat user backup '${BACKUP_USER:-user_backup}'@'localhost'"
     docker_process_sql --database=mysql <<-EOSQL
 		CREATE USER '$backupUserEscaped'@'localhost' IDENTIFIED BY '$backupPassEscaped';
-		GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER, RELOAD, PROCESS, SUPER, REPLICATION CLIENT ON *.* TO '$backupUserEscaped'@'localhost' WITH GRANT OPTION;
+		GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER, RELOAD, PROCESS, BINLOG MONITOR ON *.* TO '$backupUserEscaped'@'localhost';
 		FLUSH PRIVILEGES;
 	EOSQL
     unset backupUserEscaped backupPassEscaped

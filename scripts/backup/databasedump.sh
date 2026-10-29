@@ -1,4 +1,6 @@
 #!/bin/bash
+# Gagal jika salah satu perintah dalam pipe gagal (bukan hanya gzip)
+set -o pipefail
 start_time=$(date +%s)
 MYSQL_ARGS="--defaults-extra-file=/etc/db_backup.cnf"
 MYSQL="/usr/bin/mariadb $MYSQL_ARGS "
@@ -49,7 +51,13 @@ validate_backup() {
 # Fungsi backup database
 backup_databases() {
     # Dapatkan daftar semua database
-    local DATABASES=$($MYSQL -BNe "SHOW DATABASES;" | grep -Ev "^(Database|${EXCLUDED_DBS// /|})")
+    local DATABASES
+    if ! DATABASES=$($MYSQL -BNe "SHOW DATABASES;" 2>>"$LOGFILE"); then
+        log "GAGAL: tidak bisa mengambil daftar database (cek login user backup)"
+        BACKUP_FAILED=1
+        return
+    fi
+    DATABASES=$(echo "$DATABASES" | grep -Ev "^(Database|${EXCLUDED_DBS// /|})")
 
     log "Memulai proses backup database"
 
@@ -67,7 +75,8 @@ backup_databases() {
             --single-transaction \
             --routines \
             --triggers \
-            --databases "$DB" | gzip >"$BACKUP_FILE" 2>>"$LOGFILE"
+            --events \
+            --databases "$DB" 2>>"$LOGFILE" | gzip >"$BACKUP_FILE"
 
         # Periksa status backup
         if [ $? -eq 0 ]; then
@@ -102,7 +111,7 @@ backup_databases() {
 cleanup_old_backups() {
     log "Menghapus backup yang lebih dari $BACKUP_RETENTION_DAYS hari"
     # Dapatkan daftar semua database
-    local DATABASES=$($MYSQL -BNe "SHOW DATABASES;" | grep -Ev "^(Database|${EXCLUDED_DBS// /|})")
+    local DATABASES=$($MYSQL -BNe "SHOW DATABASES;" 2>>"$LOGFILE" | grep -Ev "^(Database|${EXCLUDED_DBS// /|})")
     # Buat backup untuk setiap database
     for DB in $DATABASES; do
         # Buat nama file unik untuk setiap database

@@ -1,8 +1,10 @@
 #!/bin/bash
+# Gagal jika salah satu perintah dalam pipe gagal (bukan hanya gzip)
+set -o pipefail
 start_time=$(date +%s)
 MYSQL_ARGS="--defaults-extra-file=/etc/db_backup.cnf"
 MYSQL="/usr/bin/mariadb $MYSQL_ARGS "
-MYSQLBACKUP="/usr/bin/mariabackup $MYSQL_ARGS "
+MYSQLBACKUP="/usr/bin/mariadb-backup $MYSQL_ARGS "
 
 BACKUP_DIR="/backup"
 BACKUP_RETENTION_DAYS=30
@@ -47,7 +49,7 @@ backup_databases() {
     local BACKUP_FILE="$DB_BACKUP_DIR/$TIMESTAMP.sql.gz"
     log "Proses Full Backup database"
     # Backup database dengan timeout dan penanganan error
-    timeout 1h $MYSQLBACKUP --backup --stream=xbstream | gzip > "$BACKUP_FILE" 2>>"$LOGFILE"
+    timeout 1h $MYSQLBACKUP --backup --stream=xbstream 2>>"$LOGFILE" | gzip >"$BACKUP_FILE"
 
     # Periksa status backup
     if [ $? -eq 0 ]; then
@@ -56,10 +58,12 @@ backup_databases() {
             log "Semua database berhasil di-BACKUP"
         else
             log "PERINGATAN: database gagal di-BACKUP"
+            BACKUP_FAILED=1
             rm -f "$BACKUP_FILE"
         fi
     else
         log "Full Backup gagal"
+        BACKUP_FAILED=1
         rm -f "$BACKUP_FILE"
     fi
 }
