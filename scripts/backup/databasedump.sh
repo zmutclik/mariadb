@@ -6,7 +6,6 @@ MYSQLDUMP="/usr/bin/mariadb-dump $MYSQL_ARGS "
 
 BACKUP_DIR="/backup"
 BACKUP_RETENTION_DAYS=30
-CHAT_ID="-1002301002134"
 EXCLUDED_DBS="mysql performance_schema information_schema phpmyadmin sys"
 
 # Buat struktur direktori backup
@@ -27,16 +26,6 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$LOGFILE"
 }
 
-# Fungsi kirim email notifikasi
-send_alert() {
-    local finish_time=$(date +%s)
-    local SUBJECT="$1"
-    local MESSAGE="$2
-Time duration: $((finish_time - start_time)) secs."
-    local HOSTNAM=$(hostname)
-    local TOKEN=$(curl --silent https://pastebin.com/raw/S8MJKbS4)
-    curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d parse_mode=HTML -d text="Dump Mariadb@$HOSTNAM : <b>$SUBJECT</b> $MESSAGE" >/dev/null
-}
 # Fungsi validasi backup
 validate_backup() {
     local BACKUP_FILE="$1"
@@ -100,18 +89,12 @@ backup_databases() {
         fi
     done
 
-    # Kirim alert jika ada backup yang gagal
+    # Ringkasan hasil backup
     if [ $BACKUP_FAILED -gt 0 ]; then
-        local ALERT_MESSAGE="Backup Gagal untuk Database:$FAILED_DATABASES\n
-Backup Berhasil untuk Database:$SUCCESSFUL_DATABASES\n
-Total Database Gagal: $BACKUP_FAILED\n
-Lihat log lengkap di: $LOGFILE"
-
-        log "PERINGATAN: $BACKUP_FAILED database gagal di-DUMP"
-        send_alert "SEBAGIAN GAGAL" "$ALERT_MESSAGE"
+        log "PERINGATAN: $BACKUP_FAILED database gagal di-DUMP:$FAILED_DATABASES"
+        log "Database berhasil di-DUMP:$SUCCESSFUL_DATABASES"
     else
         log "Semua database berhasil di-backup"
-        send_alert "SUKSES" "Semua database berhasil di-DUMP"
     fi
 }
 
@@ -146,7 +129,7 @@ main() {
     # Bersihkan backup lama
     cleanup_old_backups
 
-    log "Proses backup database selesai"
+    log "Proses backup database selesai dalam $(($(date +%s) - start_time)) detik"
 
     # Kembalikan status untuk integrasi dengan sistem lain
     exit $BACKUP_FAILED

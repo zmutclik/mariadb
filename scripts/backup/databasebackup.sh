@@ -6,7 +6,6 @@ MYSQLBACKUP="/usr/bin/mariabackup $MYSQL_ARGS "
 
 BACKUP_DIR="/backup"
 BACKUP_RETENTION_DAYS=30
-CHAT_ID="-1002301002134"
 EXCLUDED_DBS="mysql performance_schema information_schema phpmyadmin sys"
 
 # Buat struktur direktori backup
@@ -14,8 +13,6 @@ mkdir -p "$BACKUP_DIR/fullbackup"
 mkdir -p "$BACKUP_DIR/log"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 LOGFILE="$BACKUP_DIR/log/backup_log_$(date +"%Y").log"
-ALERT_MESSAGE="
-Lihat log lengkap di: $LOGFILE"
 # Variabel untuk melacak status backup
 BACKUP_FAILED=0
 FAILED_DATABASES=""
@@ -44,16 +41,6 @@ validate_backup() {
 
     return 0
 }
-# Fungsi kirim email notifikasi
-send_alert() {
-    local finish_time=$(date +%s)
-    local SUBJECT="$1"
-    local MESSAGE="$2
-Time duration: $((finish_time - start_time)) secs."
-    local HOSTNAM=$(hostname)
-    local TOKEN=$(curl --silent https://pastebin.com/raw/S8MJKbS4)
-    curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d parse_mode=HTML -d text="Backup Mariadb@$HOSTNAM : <b>$SUBJECT</b> $MESSAGE" >/dev/null
-}
 # Fungsi backup database
 backup_databases() {
     local DB_BACKUP_DIR="$BACKUP_DIR/fullbackup"
@@ -67,15 +54,12 @@ backup_databases() {
         # Validasi backup
         if validate_backup "$BACKUP_FILE"; then
             log "Semua database berhasil di-BACKUP"
-            send_alert "SUKSES" "Semua database berhasil di-BACKUP"
         else
             log "PERINGATAN: database gagal di-BACKUP"
-            send_alert "PERINGATAN: database GAGAL di-BACKUP" "$ALERT_MESSAGE"
             rm -f "$BACKUP_FILE"
         fi
     else
         log "Full Backup gagal"
-        send_alert "PERINGATAN: database GAGAL di-BACKUP" "$ALERT_MESSAGE"
         rm -f "$BACKUP_FILE"
     fi
 }
@@ -102,7 +86,7 @@ main() {
     # Bersihkan backup lama
     cleanup_old_backups
 
-    log "Proses backup database selesai"
+    log "Proses backup database selesai dalam $(($(date +%s) - start_time)) detik"
 
     # Kembalikan status untuk integrasi dengan sistem lain
     exit $BACKUP_FAILED
