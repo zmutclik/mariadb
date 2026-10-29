@@ -11,15 +11,26 @@ services:
       MARIADB_PASSWORD: ${DB_APPPASS}
       BACKUP_USER: ${BACKUP_USER}
       BACKUP_PASS: ${BACKUP_PASS}
+      BACKUP_CRON: ${BACKUP_CRON:-}
+      DUMP_CRON: ${DUMP_CRON:-}
+      # Buat user healthcheck & jalankan mariadb-upgrade otomatis saat versi naik
+      MARIADB_AUTO_UPGRADE: "1"
     ports:
       - "${DATA_PORT}:3306"
     volumes:
       - data:/var/lib/mysql
+      - backup:/backup
     networks:
       net:
     dns:
       - ${DNS1}
       - ${DNS2}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 60s
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 networks:
   net:
@@ -29,4 +40,9 @@ volumes:
 #    driver_opts:
 #      type: nfs
 #      o: addr=${NFS_ADDRESS},nfsvers=4
-#      device: ${NFS_PATH}
+#      device: ${NFS_DATA_PATH}
+  backup:
+#    driver_opts:
+#      type: nfs
+#      o: addr=${NFS_ADDRESS},nfsvers=4
+#      device: ${NFS_BACKUP_PATH}

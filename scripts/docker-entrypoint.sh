@@ -13,6 +13,8 @@ else
     echo "BACKUP_PASS kosong, /etc/db_backup.cnf tidak dibuat (backup akan gagal)" >&2
 fi
 
+/opt/backup/install_cron.sh
+
 if ! service cron start; then
     echo "Failed to start cron service" >&2
     if [ "$0" != "/docker-entrypoint.sh" ]; then
