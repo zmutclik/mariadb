@@ -5,7 +5,7 @@ RUN apt update && apt -y upgrade \
     && mkdir -p /backup/databases /backup/fullbackup /backup/log && chmod 755 /backup/databases /backup/fullbackup /backup/log \
     && echo "[mysqld]\nevent_scheduler=ON" >/etc/mysql/conf.d/custom_scheduler.cnf \
     &&  apt-get clean && rm -rf /var/lib/apt/lists/*
-COPY config/init-backup-user.sql /docker-entrypoint-initdb.d/
+COPY --chmod=644 scripts/init-backup-user.sh /docker-entrypoint-initdb.d/
 COPY scripts/backup/ /backup/
 RUN chmod +x /backup/*.sh \
     && /backup/install_backup.sh \

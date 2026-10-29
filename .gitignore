@@ -1,4 +1,2 @@
 .env
-config/init-backup-user.sql
-config/db_backup.cnf
 .DS_Store

@@ -9,6 +9,8 @@ services:
       MARIADB_DATABASE: ${DB_NAME}
       MARIADB_USER: ${DB_APPUSER}
       MARIADB_PASSWORD: ${DB_APPPASS}
+      BACKUP_USER: ${BACKUP_USER}
+      BACKUP_PASS: ${BACKUP_PASS}
     ports:
       - "${DATA_PORT}:3306"
     volumes:

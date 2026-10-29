@@ -1,35 +1,30 @@
 #!/bin/bash
+# Membuat .env dari env.sample dengan user & password acak
+set -e
 
-find ./ -type f -name ".env" -exec rm {} \;
-find ./config -type f -name "db_backup.cnf" -exec rm {} \;
-find ./config -type f -name "init-backup-user.sql" -exec rm {} \;
-cp ./env.sample ./.env
-cp ./scripts/sample.cnf ./config/db_backup.cnf
-cp ./scripts/sample.sql ./config/init-backup-user.sql
-
-export DBROOTPASSWORDX=$(curl --silent https://randomuser.me/api/ | jq '.results[].login.salt')
-export DBAPPUSERX=$(curl --silent https://randomuser.me/api/ | jq '.results[].login.password')
-export DBAPPPASSWORDX=$(curl --silent https://randomuser.me/api/ | jq '.results[].login.salt')
-export PASSYBACKUPX=$(curl --silent https://randomuser.me/api/ | jq '.results[].login.salt')
-
-sed -i~ "/^DB_ROOTPASSWORD=/s/=.*/=$DBROOTPASSWORDX/" ./.env
-sed -i~ "/^DB_APPUSER=/s/=.*/=$DBAPPUSERX/" ./.env
-sed -i~ "/^DB_APPPASS=/s/=.*/=$DBAPPPASSWORDX/" ./.env
-sed -i~ "/^BACKUP_PASS=/s/=.*/=$PASSYBACKUPX/" ./.env
-
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    SED_INPLACE="sed -i ''"
-else
-    SED_INPLACE="sed -i"
+if [ -f ./.env ] && [ "$1" != "--force" ]; then
+    echo ".env sudah ada. Password di dalamnya mungkin sudah dipakai database." >&2
+    echo "Jalankan '$0 --force' untuk menimpanya." >&2
+    exit 1
 fi
 
-eval "$SED_INPLACE 's/\"//gI' ./.env"
+gen_pass() {
+    openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32
+}
 
-source ./.env
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    SED_INPLACE=(sed -i '')
+else
+    SED_INPLACE=(sed -i)
+fi
 
-eval "$SED_INPLACE \"s/BACKUP_PASS/$PASSYBACKUPX/gI\" ./config/init-backup-user.sql"
-eval "$SED_INPLACE \"s/PASSYBACKUPX/$PASSYBACKUPX/gI\" ./config/db_backup.cnf"
-eval "$SED_INPLACE 's/\"//gI' ./config/init-backup-user.sql"
-eval "$SED_INPLACE 's/\"//gI' ./config/db_backup.cnf"
+cp ./env.sample ./.env
+"${SED_INPLACE[@]}" \
+    -e "/^DB_ROOTPASSWORD=/s/=.*/=$(gen_pass)/" \
+    -e "/^DB_APPUSER=/s/=.*/=user_$(openssl rand -hex 4)/" \
+    -e "/^DB_APPPASS=/s/=.*/=$(gen_pass)/" \
+    -e "/^BACKUP_PASS=/s/=.*/=$(gen_pass)/" \
+    ./.env
+chmod 600 ./.env
 
-rm ./.env~
+echo ".env berhasil dibuat"
