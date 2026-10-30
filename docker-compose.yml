@@ -13,6 +13,7 @@ services:
       BACKUP_PASS: ${BACKUP_PASS}
       BACKUP_CRON: ${BACKUP_CRON:-}
       DUMP_CRON: ${DUMP_CRON:-}
+      BINLOG_CRON: ${BINLOG_CRON:-}
       # Buat user healthcheck & jalankan mariadb-upgrade otomatis saat versi naik
       MARIADB_AUTO_UPGRADE: "1"
     ports:

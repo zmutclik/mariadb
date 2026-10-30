@@ -3,6 +3,7 @@
 Image Docker MariaDB (`zmutclik/mariadb`) dengan tambahan:
 
 - **Backup otomatis via cron**: full backup fisik (`mariadb-backup`) dan dump logis per database (`mariadb-dump`), retensi 30 hari.
+- **Binary log diarsipkan tiap 15 menit** untuk point-in-time recovery (restore sampai detik tertentu).
 - **Zona waktu Asia/Jakarta** dan `event_scheduler=ON`.
 - **Kredensial tidak disimpan di image**: user backup dibuat dari environment saat inisialisasi pertama.
 - **Healthcheck** dan upgrade otomatis saat versi MariaDB dinaikkan.
@@ -35,7 +36,7 @@ Gunakan `./env.sh --force` hanya untuk instalasi baru.
 | `DNS1`, `DNS2` | DNS server untuk container |
 | `NFS_ADDRESS`, `NFS_DATA_PATH`, `NFS_BACKUP_PATH` | Opsional, untuk menyimpan volume di NFS (aktifkan `driver_opts` di file compose) |
 | `BACKUP_USER`, `BACKUP_PASS` | User yang dipakai script backup |
-| `BACKUP_CRON`, `DUMP_CRON` | Jadwal format cron (mis. `30 1 * * *`). Kosong = otomatis, `off` = nonaktif |
+| `BACKUP_CRON`, `DUMP_CRON`, `BINLOG_CRON` | Jadwal format cron (mis. `30 1 * * *`). Kosong = otomatis, `off` = nonaktif |
 
 Variabel `DB_*` dan `BACKUP_USER`/`BACKUP_PASS` hanya dipakai saat volume data masih kosong.
 Mengubahnya setelah itu tidak mengubah user di database; lihat [Mengganti password backup](#mengganti-password-backup).
@@ -47,16 +48,30 @@ Mengubahnya setelah itu tidak mengubah user di database; lihat [Mengganti passwo
 | Full backup (fisik) | `/opt/backup/databasebackup.sh` | `/backup/fullbackup/<waktu>.xbstream.gz` | Jam 00:00–01:59 |
 | Dump per database | `/opt/backup/databasedump.sh` | `/backup/databases/<db>/<db>-<waktu>.sql.gz` | Jam 03:00–04:59 |
 | Dump user & grant | (ikut `databasedump.sh`) | `/backup/databases/_users/_users-<waktu>.sql.gz` | Bersama dump |
+| Arsip binary log | `/opt/backup/binlogbackup.sh` | `/backup/binlog/mysql-bin.<nomor>.gz` | Tiap 15 menit |
 
 Menit dan jam default diturunkan dari hostname, sehingga tiap server berbeda tetapi tetap sama setiap restart.
 Database `mysql`, `performance_schema`, `information_schema`, `phpmyadmin`, dan `sys` tidak ikut di-dump.
 
 `/backup` adalah volume tersendiri. Sebaiknya arahkan ke NFS/NAS (lihat `driver_opts` di file compose) agar backup tidak berada di disk yang sama dengan data.
 
+### Binary log
+
+Binary log aktif (`scripts/binlog.cnf`, format `ROW`) dan mencatat setiap perubahan data.
+`binlogbackup.sh` menutup binlog yang sedang aktif (`FLUSH BINARY LOGS`), lalu menyalin binlog yang sudah tertutup ke `/backup/binlog/`.
+Jika tidak ada perubahan sejak run sebelumnya, binlog tidak ditutup, sehingga tidak muncul file kosong saat server sepi.
+
+- Data yang bisa hilang paling lama sebesar interval `BINLOG_CRON` (default 15 menit). Binlog di data volume juga bisa dipakai jika volume itu masih utuh.
+- Setelah full backup berhasil, arsip binlog sebelum posisi full backup tersebut dihapus, karena isinya sudah ada di full backup.
+  Jadi `/backup/binlog` hanya berisi binlog sejak full backup terakhir. Jika full backup gagal, arsip tidak dihapus.
+- Akibatnya, point-in-time recovery hanya bisa dimulai dari **full backup terakhir**. Full backup yang lebih lama tetap bisa di-restore, tetapi hanya ke waktu saat backup itu dibuat.
+- Binlog di data volume dihapus otomatis setelah 2 hari. Arsip juga dihapus setelah 30 hari jika full backup dinonaktifkan (`BACKUP_CRON=off`).
+- Bebannya kecil: server memang sudah menulis binlog, script hanya menyalin file yang sudah selesai dengan prioritas CPU/IO rendah.
+
 Log ada di `/backup/log/` dan dihapus setelah 365 hari tidak berubah:
 
-- `backup_log_<tahun>.log` dan `dump_log_<tahun-bulan>.log`: jalannya proses backup.
-- `database_backup_cron.log` dan `database_dump_cron.log`: hanya error tak terduga dari job cron.
+- `backup_log_<tahun>.log`, `dump_log_<tahun-bulan>.log`, dan `binlog_log_<tahun-bulan>.log`: jalannya proses backup.
+- `database_backup_cron.log`, `database_dump_cron.log`, dan `binlog_backup_cron.log`: hanya error tak terduga dari job cron.
 
 Script keluar dengan kode selain 0 jika backup gagal. Jika backup sebelumnya masih berjalan, script langsung berhenti agar tidak berjalan dobel.
 
@@ -65,6 +80,7 @@ Menjalankan backup secara manual:
 ```bash
 docker exec <container> /opt/backup/databasebackup.sh
 docker exec <container> /opt/backup/databasedump.sh
+docker exec <container> /opt/backup/binlogbackup.sh
 ```
 
 ## Restore
@@ -120,6 +136,39 @@ Gunakan image dengan versi MariaDB yang sama dengan saat backup dibuat.
 Password root dan user lain ikut dari backup, bukan dari `.env`.
 
 Nama volume bisa dilihat dengan `docker volume ls` (biasanya `<nama_project>_data` dan `<nama_project>_backup`).
+
+### Point-in-time recovery (sampai waktu tertentu)
+
+Contoh: tabel terhapus tidak sengaja jam 14:32. Restore full backup terakhir sebelum kejadian, lalu putar ulang binlog sampai sesaat sebelumnya.
+
+1. Lakukan [restore dari **full backup terakhir**](#dari-full-backup-seluruh-server) ke volume baru, tetapi sebelum `--prepare` catat posisi binlog saat backup dibuat:
+
+   ```bash
+   cat /tmp/restore/mariadb_backup_binlog_info
+   # mysql-bin.000002	741	0-1-6   -> file, posisi, GTID
+   ```
+
+2. Jalankan container sementara (`cek-restore`) dengan volume backup ikut di-mount, lalu putar ulang binlog mulai dari posisi tersebut:
+
+   ```bash
+   docker run -d --name cek-restore -e MARIADB_AUTO_UPGRADE=1 \
+     -v restore_data:/var/lib/mysql -v <volume_backup>:/backup:ro zmutclik/mariadb:12.3
+
+   docker exec -it cek-restore bash
+   mkdir -p /tmp/bl
+   for f in /backup/binlog/mysql-bin.*.gz; do gunzip -c "$f" > /tmp/bl/$(basename "$f" .gz); done
+   # Hanya file mulai dari file di mariadb_backup_binlog_info, urut sesuai nomor
+   mariadb-binlog --start-position=741 --stop-datetime="2026-10-30 14:31:59" \
+     /tmp/bl/mysql-bin.000002 /tmp/bl/mysql-bin.000003 ... \
+     | mariadb -uroot -p
+   ```
+
+   `--start-position` hanya berlaku untuk file pertama. Untuk melihat isi binlog sebelum diputar ulang (mis. mencari waktu persis kejadian), gunakan `mariadb-binlog --verbose <file> | less`.
+
+3. Periksa data, lalu ganti volume lama dengan volume hasil restore.
+
+Waktu `--stop-datetime` memakai zona waktu container (Asia/Jakarta).
+Jika data volume lama masih bisa dibaca, binlog terbaru (yang belum sempat diarsipkan) ada di `/var/lib/mysql/mysql-bin.*` volume tersebut.
 
 ## Perawatan
 

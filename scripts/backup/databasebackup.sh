@@ -14,6 +14,7 @@ MYSQL="/usr/bin/mariadb $MYSQL_ARGS "
 MYSQLBACKUP="/usr/bin/mariadb-backup $MYSQL_ARGS "
 
 BACKUP_DIR="/backup"
+BINLOG_DIR="$BACKUP_DIR/binlog"
 BACKUP_RETENTION_DAYS=30
 LOG_RETENTION_DAYS=365
 EXCLUDED_DBS="mysql performance_schema information_schema phpmyadmin sys"
@@ -76,6 +77,31 @@ backup_databases() {
     fi
 }
 
+# Hapus arsip binlog yang sudah tercakup full backup.
+# Posisi binlog full backup selalu di binlog yang aktif saat backup dimulai atau sesudahnya,
+# jadi binlog dengan nomor lebih kecil tidak dibutuhkan lagi untuk point-in-time recovery.
+purge_archived_binlogs() {
+    [ -n "$BINLOG_START" ] || return 0
+    local START_NUM=$((10#${BINLOG_START##*.}))
+    # Penanda untuk binlogbackup.sh agar binlog lama yang masih ada di server tidak diarsipkan ulang
+    mkdir -p "$BINLOG_DIR"
+    echo "$BINLOG_START" >"$BINLOG_DIR/.full_backup_start"
+    local DELETED=0
+    local FILE NAME
+
+    for FILE in "$BINLOG_DIR"/*.gz; do
+        [ -f "$FILE" ] || continue
+        NAME=$(basename "$FILE" .gz)
+        # mysql-bin.000012.gz: hapus jika sebelum binlog awal full backup.
+        # mysql-bin.000012.<waktu>.gz: arsip dari penomoran lama (sebelum restore), selalu dihapus.
+        if [[ "$NAME" =~ ^[^.]+\.([0-9]+)$ ]] && [ $((10#${BASH_REMATCH[1]})) -ge $START_NUM ]; then
+            continue
+        fi
+        rm -f "$FILE" && DELETED=$((DELETED + 1))
+    done
+    log "Menghapus $DELETED arsip binlog sebelum $BINLOG_START (sudah tercakup full backup)"
+}
+
 # Fungsi hapus backup lama
 cleanup_old_backups() {
     log "Menghapus backup yang lebih dari $BACKUP_RETENTION_DAYS hari"
@@ -93,8 +119,16 @@ main() {
     SUCCESSFUL_DATABASES=""
     DELETED_FILESBACKUP=""
 
+    # Binlog aktif saat backup dimulai, kosong jika binlog tidak aktif
+    BINLOG_START=$($MYSQL -BNe "SHOW BINARY LOGS;" 2>/dev/null | tail -n1 | cut -f1)
+
     # Jalankan backup
     backup_databases
+
+    # Arsip binlog hanya dihapus jika full backup berhasil
+    if [ $BACKUP_FAILED -eq 0 ]; then
+        purge_archived_binlogs
+    fi
 
     # Bersihkan backup lama
     cleanup_old_backups
