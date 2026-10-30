@@ -46,13 +46,19 @@ Mengubahnya setelah itu tidak mengubah user di database; lihat [Mengganti passwo
 |---|---|---|---|
 | Full backup (fisik) | `/opt/backup/databasebackup.sh` | `/backup/fullbackup/<waktu>.xbstream.gz` | Jam 00:00–01:59 |
 | Dump per database | `/opt/backup/databasedump.sh` | `/backup/databases/<db>/<db>-<waktu>.sql.gz` | Jam 03:00–04:59 |
+| Dump user & grant | (ikut `databasedump.sh`) | `/backup/databases/_users/_users-<waktu>.sql.gz` | Bersama dump |
 
 Menit dan jam default diturunkan dari hostname, sehingga tiap server berbeda tetapi tetap sama setiap restart.
 Database `mysql`, `performance_schema`, `information_schema`, `phpmyadmin`, dan `sys` tidak ikut di-dump.
 
 `/backup` adalah volume tersendiri. Sebaiknya arahkan ke NFS/NAS (lihat `driver_opts` di file compose) agar backup tidak berada di disk yang sama dengan data.
 
-Log ada di `/backup/log/`. Script keluar dengan kode selain 0 jika backup gagal.
+Log ada di `/backup/log/` dan dihapus setelah 365 hari tidak berubah:
+
+- `backup_log_<tahun>.log` dan `dump_log_<tahun-bulan>.log`: jalannya proses backup.
+- `database_backup_cron.log` dan `database_dump_cron.log`: hanya error tak terduga dari job cron.
+
+Script keluar dengan kode selain 0 jika backup gagal. Jika backup sebelumnya masih berjalan, script langsung berhenti agar tidak berjalan dobel.
 
 Menjalankan backup secara manual:
 
@@ -69,6 +75,17 @@ Dump berisi `CREATE DATABASE`, tabel, data, trigger, routine, dan event. Databas
 
 ```bash
 FILE=/backup/databases/<db>/<db>-<waktu>.sql.gz
+docker exec <container> sh -c "gunzip -c $FILE" \
+  | docker exec -i <container> sh -c 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD"'
+```
+
+### User & grant
+
+Database `mysql` tidak ikut di-dump, jadi user aplikasi dan hak aksesnya disimpan di dump terpisah.
+Restore ini dulu sebelum restore database ke server baru. User yang sudah ada (mis. `root`) tidak ditimpa.
+
+```bash
+FILE=/backup/databases/_users/_users-<waktu>.sql.gz
 docker exec <container> sh -c "gunzip -c $FILE" \
   | docker exec -i <container> sh -c 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD"'
 ```

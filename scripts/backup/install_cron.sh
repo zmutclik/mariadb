@@ -10,14 +10,16 @@ BACKUP_CRON="${BACKUP_CRON:-$((SEED % 60)) $((SEED / 60 % 2)) * * *}"
 DUMP_CRON="${DUMP_CRON:-$((SEED / 120 % 60)) $((SEED / 7200 % 2 + 3)) * * *}"
 
 CRON_LOG_DIR="/backup/log"
+# stdout script sudah tercatat di log backup/dump-nya sendiri, jadi di sini cukup stderr
+# (error tak terduga) agar isi log tidak dobel
 mkdir -p "$CRON_LOG_DIR"
 
 CRONTAB=""
 if [ "$BACKUP_CRON" != "off" ]; then
-    CRONTAB+="$BACKUP_CRON /opt/backup/databasebackup.sh >> $CRON_LOG_DIR/database_backup_cron.log 2>&1"$'\n'
+    CRONTAB+="$BACKUP_CRON /opt/backup/databasebackup.sh > /dev/null 2>> $CRON_LOG_DIR/database_backup_cron.log"$'\n'
 fi
 if [ "$DUMP_CRON" != "off" ]; then
-    CRONTAB+="$DUMP_CRON /opt/backup/databasedump.sh >> $CRON_LOG_DIR/database_dump_cron.log 2>&1"$'\n'
+    CRONTAB+="$DUMP_CRON /opt/backup/databasedump.sh > /dev/null 2>> $CRON_LOG_DIR/database_dump_cron.log"$'\n'
 fi
 
 printf '%s' "$CRONTAB" | crontab -

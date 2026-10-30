@@ -1,6 +1,13 @@
 #!/bin/bash
 # Gagal jika salah satu perintah dalam pipe gagal (bukan hanya gzip)
 set -o pipefail
+
+# Cegah dump berjalan dobel (cron + manual, atau dump sebelumnya belum selesai)
+exec 9>/run/databasedump.lock
+if ! flock -n 9; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Dump lain masih berjalan, dibatalkan" >&2
+    exit 1
+fi
 start_time=$(date +%s)
 MYSQL_ARGS="--defaults-extra-file=/etc/db_backup.cnf"
 MYSQL="/usr/bin/mariadb $MYSQL_ARGS "
@@ -8,7 +15,10 @@ MYSQLDUMP="/usr/bin/mariadb-dump $MYSQL_ARGS "
 
 BACKUP_DIR="/backup"
 BACKUP_RETENTION_DAYS=30
+LOG_RETENTION_DAYS=365
 EXCLUDED_DBS="mysql performance_schema information_schema phpmyadmin sys"
+# Folder dump user & grant, diawali "_" agar tidak bentrok dengan nama database
+USERS_DUMP_NAME="_users"
 
 # Buat struktur direktori backup
 mkdir -p "$BACKUP_DIR/databases"
@@ -48,6 +58,26 @@ validate_backup() {
 
     return 0
 }
+# Dump user & grant (database mysql tidak ikut di-dump)
+backup_users() {
+    local USERS_DIR="$BACKUP_DIR/databases/$USERS_DUMP_NAME"
+    mkdir -p "$USERS_DIR"
+    local BACKUP_FILE="$USERS_DIR/$USERS_DUMP_NAME-$TIMESTAMP.sql.gz"
+
+    log "Proses backup user & grant"
+    # --insert-ignore: CREATE USER IF NOT EXISTS, user yang sudah ada tidak ditimpa saat restore
+    timeout 1h $MYSQLDUMP --system=users --insert-ignore 2>>"$LOGFILE" | gzip >"$BACKUP_FILE"
+
+    if [ $? -eq 0 ] && validate_backup "$BACKUP_FILE" "user & grant"; then
+        log "Backup user & grant berhasil"
+        SUCCESSFUL_DATABASES+=" $USERS_DUMP_NAME"
+    else
+        log "Backup user & grant gagal"
+        BACKUP_FAILED=$((BACKUP_FAILED + 1))
+        FAILED_DATABASES+=" $USERS_DUMP_NAME"
+        rm -f "$BACKUP_FILE"
+    fi
+}
 # Fungsi backup database
 backup_databases() {
     # Dapatkan daftar semua database
@@ -57,9 +87,9 @@ backup_databases() {
         BACKUP_FAILED=1
         return
     fi
-    DATABASES=$(echo "$DATABASES" | grep -Ev "^(Database|${EXCLUDED_DBS// /|})")
+    DATABASES=$(echo "$DATABASES" | grep -Ev "^(${EXCLUDED_DBS// /|})$")
 
-    log "Memulai proses backup database"
+    log "Memulai dump per database"
 
     # Buat backup untuk setiap database
     for DB in $DATABASES; do
@@ -98,6 +128,8 @@ backup_databases() {
         fi
     done
 
+    backup_users
+
     # Ringkasan hasil backup
     if [ $BACKUP_FAILED -gt 0 ]; then
         log "PERINGATAN: $BACKUP_FAILED database gagal di-DUMP:$FAILED_DATABASES"
@@ -111,7 +143,7 @@ backup_databases() {
 cleanup_old_backups() {
     log "Menghapus backup yang lebih dari $BACKUP_RETENTION_DAYS hari"
     # Dapatkan daftar semua database
-    local DATABASES=$($MYSQL -BNe "SHOW DATABASES;" 2>>"$LOGFILE" | grep -Ev "^(Database|${EXCLUDED_DBS// /|})")
+    local DATABASES=$($MYSQL -BNe "SHOW DATABASES;" 2>>"$LOGFILE" | grep -Ev "^(${EXCLUDED_DBS// /|})$")
     # Buat backup untuk setiap database
     for DB in $DATABASES; do
         # Buat nama file unik untuk setiap database
@@ -120,6 +152,8 @@ cleanup_old_backups() {
 
         DELETED_FILESBACKUP+=" $DELETED_FILES"
     done
+    find "$BACKUP_DIR/databases/$USERS_DUMP_NAME" -name "*.sql.gz" -type f -mtime +$BACKUP_RETENTION_DAYS -delete
+    find "$BACKUP_DIR/log" -name "*.log" -type f -mtime +$LOG_RETENTION_DAYS -delete
 }
 
 # Fungsi utama

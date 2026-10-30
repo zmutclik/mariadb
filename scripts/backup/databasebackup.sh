@@ -1,6 +1,13 @@
 #!/bin/bash
 # Gagal jika salah satu perintah dalam pipe gagal (bukan hanya gzip)
 set -o pipefail
+
+# Cegah backup berjalan dobel (cron + manual, atau backup sebelumnya belum selesai)
+exec 9>/run/databasebackup.lock
+if ! flock -n 9; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Full backup lain masih berjalan, dibatalkan" >&2
+    exit 1
+fi
 start_time=$(date +%s)
 MYSQL_ARGS="--defaults-extra-file=/etc/db_backup.cnf"
 MYSQL="/usr/bin/mariadb $MYSQL_ARGS "
@@ -8,6 +15,7 @@ MYSQLBACKUP="/usr/bin/mariadb-backup $MYSQL_ARGS "
 
 BACKUP_DIR="/backup"
 BACKUP_RETENTION_DAYS=30
+LOG_RETENTION_DAYS=365
 EXCLUDED_DBS="mysql performance_schema information_schema phpmyadmin sys"
 
 # Buat struktur direktori backup
@@ -73,6 +81,7 @@ cleanup_old_backups() {
     log "Menghapus backup yang lebih dari $BACKUP_RETENTION_DAYS hari"
     # *.sql.gz untuk file lama sebelum akhiran diganti ke .xbstream.gz
     local DELETED_FILES=$(find "$BACKUP_DIR/fullbackup" \( -name "*.xbstream.gz" -o -name "*.sql.gz" \) -type f -mtime +$BACKUP_RETENTION_DAYS -delete -print | wc -l)
+    find "$BACKUP_DIR/log" -name "*.log" -type f -mtime +$LOG_RETENTION_DAYS -delete
 }
 # Fungsi utama
 main() {
