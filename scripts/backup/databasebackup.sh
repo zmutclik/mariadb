@@ -46,7 +46,7 @@ validate_backup() {
 # Fungsi backup database
 backup_databases() {
     local DB_BACKUP_DIR="$BACKUP_DIR/fullbackup"
-    local BACKUP_FILE="$DB_BACKUP_DIR/$TIMESTAMP.sql.gz"
+    local BACKUP_FILE="$DB_BACKUP_DIR/$TIMESTAMP.xbstream.gz"
     log "Proses Full Backup database"
     # Backup database dengan timeout dan penanganan error
     timeout 1h $MYSQLBACKUP --backup --stream=xbstream 2>>"$LOGFILE" | gzip >"$BACKUP_FILE"
@@ -71,8 +71,8 @@ backup_databases() {
 # Fungsi hapus backup lama
 cleanup_old_backups() {
     log "Menghapus backup yang lebih dari $BACKUP_RETENTION_DAYS hari"
-    # Dapatkan daftar semua database
-    local DELETED_FILES=$(find "$BACKUP_DIR/fullbackup" -name "*.sql.gz" -type f -mtime +$BACKUP_RETENTION_DAYS -delete -print | wc -l)
+    # *.sql.gz untuk file lama sebelum akhiran diganti ke .xbstream.gz
+    local DELETED_FILES=$(find "$BACKUP_DIR/fullbackup" \( -name "*.xbstream.gz" -o -name "*.sql.gz" \) -type f -mtime +$BACKUP_RETENTION_DAYS -delete -print | wc -l)
 }
 # Fungsi utama
 main() {

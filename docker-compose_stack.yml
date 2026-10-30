@@ -1,9 +1,15 @@
 services:
   mariadb:
-    image: zmutclik/mariadb:latest
+    image: zmutclik/mariadb:12.3
+    # container_name & restart dipakai Portainer/compose biasa, diabaikan oleh Docker Swarm
     container_name: ${CONTAINER_NAME}
     hostname: ${HOSTNAME}
     restart: always
+    # Dipakai Docker Swarm (docker stack deploy)
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
     environment:
       MARIADB_ROOT_PASSWORD: ${DB_ROOTPASSWORD}
       MARIADB_DATABASE: ${DB_NAME}

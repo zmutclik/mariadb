@@ -15,11 +15,9 @@ fi
 
 /opt/backup/install_cron.sh
 
+# Database tetap dijalankan walau cron gagal start, backup saja yang tidak jalan
 if ! service cron start; then
-    echo "Failed to start cron service" >&2
-    if [ "$0" != "/docker-entrypoint.sh" ]; then
-        exec docker-entrypoint.sh "$@"
-    fi
+    echo "Gagal menjalankan cron, backup otomatis tidak aktif" >&2
 fi
-sleep 1
+
 exec docker-entrypoint.sh "$@"
