@@ -6,6 +6,7 @@ Image Docker MariaDB (`zmutclik/mariadb`) dengan tambahan:
 - **Binary log diarsipkan tiap 15 menit** untuk point-in-time recovery (restore sampai detik tertentu).
 - **Zona waktu Asia/Jakarta** dan `event_scheduler=ON`.
 - **Kredensial tidak disimpan di image**: user backup dibuat dari environment saat inisialisasi pertama.
+- **Tuning otomatis** sesuai limit CPU & memori container.
 - **Healthcheck** dan upgrade otomatis saat versi MariaDB dinaikkan.
 
 ## Mulai cepat
@@ -34,12 +35,56 @@ Gunakan `./env.sh --force` hanya untuk instalasi baru.
 | `DB_ROOTPASSWORD` | Password root MariaDB |
 | `DB_NAME`, `DB_APPUSER`, `DB_APPPASS` | Database dan user aplikasi yang dibuat saat inisialisasi pertama |
 | `DNS1`, `DNS2` | DNS server untuk container |
-| `NFS_ADDRESS`, `NFS_DATA_PATH`, `NFS_BACKUP_PATH` | Opsional, untuk menyimpan volume di NFS (aktifkan `driver_opts` di file compose) |
+| `DB_CPUS`, `DB_MEM_LIMIT` | Batas CPU dan memori container (default `2` dan `2G`), dasar perhitungan [tuning](#tuning-otomatis) |
+| `DB_TUNING`, `DB_MEMORY`, `DB_MAX_CONNECTIONS`, `DB_DISK` | Pengaturan [tuning otomatis](#tuning-otomatis) |
 | `BACKUP_USER`, `BACKUP_PASS` | User yang dipakai script backup |
 | `BACKUP_CRON`, `DUMP_CRON`, `BINLOG_CRON` | Jadwal format cron (mis. `30 1 * * *`). Kosong = otomatis, `off` = nonaktif |
 
 Variabel `DB_*` dan `BACKUP_USER`/`BACKUP_PASS` hanya dipakai saat volume data masih kosong.
 Mengubahnya setelah itu tidak mengubah user di database; lihat [Mengganti password backup](#mengganti-password-backup).
+
+## Tuning otomatis
+
+Setiap container start, `/opt/tuning.sh` membaca limit CPU & memori container lalu menulis `/etc/mysql/conf.d/zz-tuning.cnf`.
+Tanpa tuning, MariaDB memakai buffer pool default 128MB yang terlalu kecil untuk database besar.
+Hasil perhitungan tampil di `docker logs <container>`.
+
+| Variabel | Default | Keterangan |
+|---|---|---|
+| `DB_MEM_LIMIT`, `DB_CPUS` | `2G`, `2` | Limit container (`deploy.resources.limits`). Ubah ini sesuai spek server |
+| `DB_TUNING` | `auto` | `off` = tidak ada tuning, MariaDB memakai config default |
+| `DB_MEMORY` | kosong | Jatah memori MariaDB jika ingin lebih kecil dari limit container |
+| `DB_MAX_CONNECTIONS` | `200` | Jumlah koneksi maksimal. Tiap koneksi dijatah ±2MB, diambil dari buffer pool |
+| `DB_DISK` | `ssd` | `ssd` atau `hdd`, menentukan kecepatan InnoDB menulis halaman ke disk |
+
+Yang dihitung:
+
+| Parameter | Nilai |
+|---|---|
+| `innodb_buffer_pool_size` | 50% memori (< 2G), 65% (< 8G), 75% (≥ 8G), dikurangi jatah koneksi |
+| `innodb_log_file_size` | 25% buffer pool, 96M–4G |
+| `innodb_read/write_io_threads` | Jumlah CPU, 4–16 |
+| `innodb_io_capacity(_max)` | `ssd` 2000/4000, `hdd` 200/400 |
+| `tmp_table_size`, `max_heap_table_size` | 1/64 memori, 16M–256M |
+| `table_open_cache`, `table_definition_cache` | 10 × `max_connections`, 2000–10000 |
+
+Jika container tidak punya limit memori dan `DB_MEMORY` kosong, yang terbaca adalah RAM seluruh host.
+Karena itu dipakai 50% RAM host dan muncul peringatan di log.
+
+Mengubah limit cukup dengan edit `.env` lalu `docker compose up -d`. Config dihitung ulang saat container dibuat ulang.
+Untuk memaksa nilai tertentu, mount file `.cnf` yang namanya urut setelah `zz-tuning.cnf`:
+
+```yaml
+    volumes:
+      - ./custom.cnf:/etc/mysql/conf.d/zzz-custom.cnf:ro
+```
+
+Melihat nilai yang aktif:
+
+```bash
+docker exec <container> cat /etc/mysql/conf.d/zz-tuning.cnf
+docker exec <container> sh -c 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -e "SELECT @@innodb_buffer_pool_size/1024/1024 AS buffer_pool_mb"'
+```
 
 ## Backup
 
@@ -53,7 +98,7 @@ Mengubahnya setelah itu tidak mengubah user di database; lihat [Mengganti passwo
 Menit dan jam default diturunkan dari hostname, sehingga tiap server berbeda tetapi tetap sama setiap restart.
 Database `mysql`, `performance_schema`, `information_schema`, `phpmyadmin`, dan `sys` tidak ikut di-dump.
 
-`/backup` adalah volume tersendiri. Sebaiknya arahkan ke NFS/NAS (lihat `driver_opts` di file compose) agar backup tidak berada di disk yang sama dengan data.
+`/backup` adalah volume tersendiri. Sebaiknya letakkan di disk lain dari data volume, atau salin isinya ke server lain secara berkala, agar backup tidak ikut hilang saat disk data rusak.
 
 ### Binary log
 

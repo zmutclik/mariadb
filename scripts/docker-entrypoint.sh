@@ -13,6 +13,7 @@ else
     echo "BACKUP_PASS kosong, /etc/db_backup.cnf tidak dibuat (backup akan gagal)" >&2
 fi
 
+/opt/tuning.sh
 /opt/backup/install_cron.sh
 
 # Database tetap dijalankan walau cron gagal start, backup saja yang tidak jalan

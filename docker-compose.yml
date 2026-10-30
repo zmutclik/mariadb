@@ -14,6 +14,10 @@ services:
       BACKUP_CRON: ${BACKUP_CRON:-}
       DUMP_CRON: ${DUMP_CRON:-}
       BINLOG_CRON: ${BINLOG_CRON:-}
+      DB_TUNING: ${DB_TUNING:-auto}
+      DB_MEMORY: ${DB_MEMORY:-}
+      DB_MAX_CONNECTIONS: ${DB_MAX_CONNECTIONS:-200}
+      DB_DISK: ${DB_DISK:-ssd}
       # Buat user healthcheck & jalankan mariadb-upgrade otomatis saat versi naik
       MARIADB_AUTO_UPGRADE: "1"
     ports:
@@ -24,6 +28,12 @@ services:
     dns:
       - ${DNS1}
       - ${DNS2}
+    # Batas resource container, dibaca otomatis untuk tuning MariaDB
+    deploy:
+      resources:
+        limits:
+          cpus: "${DB_CPUS:-2}"
+          memory: ${DB_MEM_LIMIT:-2G}
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       start_period: 60s
@@ -33,12 +43,4 @@ services:
 
 volumes:
   data:
-#    driver_opts:
-#      type: nfs
-#      o: addr=${NFS_ADDRESS},nfsvers=4
-#      device: ${NFS_DATA_PATH}
   backup:
-#    driver_opts:
-#      type: nfs
-#      o: addr=${NFS_ADDRESS},nfsvers=4
-#      device: ${NFS_BACKUP_PATH}

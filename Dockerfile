@@ -9,6 +9,7 @@ RUN apt update && apt -y upgrade \
 COPY --chmod=644 scripts/binlog.cnf /etc/mysql/conf.d/binlog.cnf
 COPY --chmod=644 scripts/init-backup-user.sh /docker-entrypoint-initdb.d/
 COPY --chmod=755 scripts/backup/ /opt/backup/
+COPY --chmod=755 scripts/tuning.sh /opt/tuning.sh
 RUN rm /etc/ssl/openssl.cnf
 COPY scripts/openssl.cnf /etc/ssl/openssl.cnf
 COPY scripts/docker-entrypoint.sh /usr/local/bin/custom-entrypoint.sh
